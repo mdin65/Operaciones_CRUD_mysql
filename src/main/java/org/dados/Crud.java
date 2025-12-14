@@ -11,6 +11,7 @@ public class Crud {
 
     public void insert() {
         String[][] tabla = tabla();
+        if (tabla == null) return;
         String table = tabla[0][0];
         sc.nextLine();
 
@@ -28,7 +29,7 @@ public class Crud {
             String input = sc.nextLine();
 
             if ("prestamos".equals(table) && ("id_usuario".equals(col) || "id_libro".equals(col))) {
-                while (!isInt(input)) {
+                while (isInt(input)) {
                     System.out.print("Ingrese un número válido para " + col + ": ");
                     input = sc.nextLine();
                 }
@@ -56,6 +57,7 @@ public class Crud {
 
     public void select() {
         String[][] tabla = tabla();
+        if (tabla == null) return;
         String table = tabla[0][0];
         String pk = tabla[0][1];
         sc.nextLine();
@@ -80,6 +82,7 @@ public class Crud {
 
     public void update() {
         String[][] tabla = tabla();
+        if (tabla == null) return;
         String table = tabla[0][0];
         String pk = tabla[0][1];
         sc.nextLine();
@@ -100,7 +103,7 @@ public class Crud {
         }
 
         String opt = sc.nextLine();
-        if (!isInt(opt)) {
+        if (isInt(opt)) {
             System.out.println("Opción inválida");
             return;
         }
@@ -136,7 +139,7 @@ public class Crud {
 
         Object newValueObj;
         if ("prestamos".equals(table) && ("id_usuario".equals(col) || "id_libro".equals(col))) {
-            while (!isInt(newValue)) {
+            while (isInt(newValue)) {
                 System.out.print("Ingrese un número válido para " + col + ": ");
                 newValue = sc.nextLine();
             }
@@ -158,6 +161,7 @@ public class Crud {
 
     public void delete() {
         String[][] tabla = tabla();
+        if (tabla == null) return;
         String table = tabla[0][0];
         String pk = tabla[0][1];
         sc.nextLine();
@@ -171,7 +175,7 @@ public class Crud {
     private int readInt(String prompt) {
         System.out.print(prompt);
         String s = sc.nextLine();
-        while (!isInt(s)) {
+        while (isInt(s)) {
             System.out.print(prompt);
             s = sc.nextLine();
         }
@@ -183,12 +187,14 @@ public class Crud {
         System.out.println("1- Usuarios");
         System.out.println("2- Libros");
         System.out.println("3- Préstamos");
+        System.out.println("4- Salir");
         int n = sc.nextInt();
 
         return switch (n) {
             case 1 -> new String[][]{{"usuarios", "id_usuario", "nombre", "email"}};
             case 2 -> new String[][]{{"libros", "id_libro", "titulo", "autor", "disponible"}};
             case 3 -> new String[][]{{"prestamos", "id_prestamo", "id_usuario", "id_libro"}};
+            case 4 -> { yield null; }
             default -> tabla();
         };
     }
@@ -196,9 +202,9 @@ public class Crud {
     private boolean isInt(String number) {
         try {
             Integer.parseInt(number.trim());
-            return true;
-        } catch (NumberFormatException e) {
             return false;
+        } catch (NumberFormatException e) {
+            return true;
         }
     }
 }

@@ -112,26 +112,32 @@ public class Database {
         for (int i = 0; i < params.length; i++) {
             Object p = params[i];
 
-            if (p == null) {
-                ps.setNull(i + 1, Types.NULL);
-                continue;
-            }
-
-            // Allow passing dates as "YYYY-MM-DD" strings
-            if (p instanceof String s) {
-                String trimmed = s.trim();
-                if (trimmed.matches("\\d{4}-\\d{2}-\\d{2}")) {
-                    ps.setDate(i + 1, Date.valueOf(LocalDate.parse(trimmed)));
-                } else {
-                    ps.setString(i + 1, s);
+            switch (p) {
+                case null -> {
+                    ps.setNull(i + 1, Types.NULL);
+                    continue;
                 }
-                continue;
-            }
 
-            // Allow passing LocalDate directly
-            if (p instanceof LocalDate ld) {
-                ps.setDate(i + 1, Date.valueOf(ld));
-                continue;
+
+                // Allow passing dates as "YYYY-MM-DD" strings
+                case String s -> {
+                    String trimmed = s.trim();
+                    if (trimmed.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                        ps.setDate(i + 1, Date.valueOf(LocalDate.parse(trimmed)));
+                    } else {
+                        ps.setString(i + 1, s);
+                    }
+                    continue;
+                }
+
+
+                // Allow passing LocalDate directly
+                case LocalDate ld -> {
+                    ps.setDate(i + 1, Date.valueOf(ld));
+                    continue;
+                }
+                default -> {
+                }
             }
 
             ps.setObject(i + 1, p);
