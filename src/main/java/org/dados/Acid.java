@@ -4,6 +4,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
@@ -31,10 +33,31 @@ public class Acid {
                 return;
             }
 
+            try (PreparedStatement lockLibro = con.prepareStatement(
+                    "SELECT disponible FROM libros WHERE id_libro = ? FOR UPDATE")) {
+                lockLibro.setInt(1, idLibro);
+
+                try (ResultSet rs = lockLibro.executeQuery()) {
+                    if (!rs.next()) {
+                        con.rollback();
+                        System.out.println("El libro no existe");
+                        return;
+                    }
+                    if (!rs.getBoolean("disponible")) {
+                        con.rollback();
+                        System.out.println("El libro no está disponible");
+                        return;
+                    }
+                }
+            }
+
+            LocalDate fechaActual = LocalDate.now(ZoneId.systemDefault());
+
             try (PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO prestamos (id_usuario, id_libro, fecha_devolucion) VALUES (?, ?, CURRENT_DATE + INTERVAL '7 days')")) {
+                    "INSERT INTO prestamos (id_usuario, id_libro, fecha_prestamo) VALUES (?, ?, ?)")) {
                 ps.setInt(1, idUsuario);
                 ps.setInt(2, idLibro);
+                ps.setDate(3, java.sql.Date.valueOf(fechaActual));
                 ps.executeUpdate();
             }
 
@@ -45,7 +68,7 @@ public class Acid {
             }
 
             con.commit();
-            System.out.println("Préstamo registrado. Fecha de devolución en 7 días");
+            System.out.println("Préstamo registrado correctamente");
 
         } catch (SQLException e) {
             throw new RuntimeException("Error al prestar libro: " + e.getMessage(), e);
@@ -56,7 +79,7 @@ public class Acid {
         try (Connection con = Database.getConnection()) {
             con.setAutoCommit(false);
 
-            Integer idPrestamo = seleccionarPrestamoActivo(con);
+            Integer idPrestamo = seleccionarPrestamo(con);
             if (idPrestamo == null) {
                 con.rollback();
                 return;
@@ -64,18 +87,26 @@ public class Acid {
 
             int idLibro;
 
-            try (PreparedStatement ps = con.prepareStatement(
-                    "SELECT id_libro FROM prestamos WHERE id_prestamo = ?")) {
-                ps.setInt(1, idPrestamo);
-                try (ResultSet rs = ps.executeQuery()) {
-                    rs.next();
+            try (PreparedStatement lockPrestamo = con.prepareStatement(
+                    "SELECT id_libro FROM prestamos WHERE id_prestamo = ? AND fecha_devolucion IS NULL FOR UPDATE")) {
+                lockPrestamo.setInt(1, idPrestamo);
+
+                try (ResultSet rs = lockPrestamo.executeQuery()) {
+                    if (!rs.next()) {
+                        con.rollback();
+                        System.out.println("El préstamo no existe o ya fue devuelto");
+                        return;
+                    }
                     idLibro = rs.getInt("id_libro");
                 }
             }
 
+            LocalDate fechaActual = LocalDate.now(ZoneId.systemDefault());
+
             try (PreparedStatement ps = con.prepareStatement(
-                    "UPDATE prestamos SET fecha_devolucion = CURRENT_DATE WHERE id_prestamo = ?")) {
-                ps.setInt(1, idPrestamo);
+                    "UPDATE prestamos SET fecha_devolucion = ? WHERE id_prestamo = ?")) {
+                ps.setDate(1, java.sql.Date.valueOf(fechaActual));
+                ps.setInt(2, idPrestamo);
                 ps.executeUpdate();
             }
 
@@ -92,7 +123,6 @@ public class Acid {
             throw new RuntimeException("Error al devolver libro: " + e.getMessage(), e);
         }
     }
-
 
     private Integer seleccionarUsuario(Connection con) throws SQLException {
         String sql = "SELECT id_usuario, nombre FROM usuarios ORDER BY id_usuario";
@@ -146,13 +176,13 @@ public class Acid {
         }
     }
 
-    private Integer seleccionarPrestamoActivo(Connection con) throws SQLException {
+    private Integer seleccionarPrestamo(Connection con) throws SQLException {
         String sql =
                 "SELECT p.id_prestamo, u.nombre, l.titulo " +
                         "FROM prestamos p " +
                         "JOIN usuarios u ON u.id_usuario = p.id_usuario " +
                         "JOIN libros l ON l.id_libro = p.id_libro " +
-                        "WHERE l.disponible = FALSE " +
+                        "WHERE p.fecha_devolucion IS NULL " +
                         "ORDER BY p.fecha_prestamo";
 
         try (PreparedStatement ps = con.prepareStatement(sql);
@@ -167,7 +197,10 @@ public class Acid {
                 index++;
             }
 
-            if (ids.isEmpty()) return null;
+            if (ids.isEmpty()) {
+                System.out.println("No hay préstamos pendientes de devolución");
+                return null;
+            }
 
             System.out.println("0- Volver");
 
@@ -177,7 +210,6 @@ public class Acid {
             return ids.get(opcion - 1);
         }
     }
-
 
     private int readInt(String prompt) {
         System.out.print(prompt);
